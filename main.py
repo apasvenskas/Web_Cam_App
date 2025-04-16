@@ -2,6 +2,8 @@ import cv2
 import time
 from electronic_mail import send_email
 import glob
+import os
+from threading import Thread
 
 video = cv2.VideoCapture(0)
 time.sleep(1)
@@ -9,6 +11,13 @@ time.sleep(1)
 first_frame = None
 status_list = []
 count = 1
+
+def clean_folder():
+    print("Clean folder function started.")
+    images = glob.glob("images/*.png")
+    for image in images:
+        os.remove(image)
+    print("clean folder function ended")
 
 while True:
     status = 0
@@ -34,11 +43,11 @@ while True:
         if cv2.contourArea(contour) < 15000: # adjust the value for the amount of pixels to be detected.
             continue
         x, y, w, h = cv2.boundingRect(contour)
-        rectangle = cv2.rectangle(frame, (x, y), (x+y, y+h), (0, 255, 0), 3)
+        rectangle = cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 3)
         if rectangle.any(): # send email if movement detected.
             status = 1
             cv2.imwrite(f"images/{count}.png", frame)
-            count = count + 1
+            count += 1
             all_images = glob.glob("images/*.png")
             index = int(len(all_images)/2)
             image_with_object = all_images[index]
@@ -47,7 +56,15 @@ while True:
     status_list = status_list[-2:]
 
     if status_list[0] == 1 and status_list[1] == 0:
-        send_email()
+        email_thread = Thread(target=send_email, args=(image_with_object, ))
+        email_thread.daemon = True
+        clean_thread = Thread(target=clean_folder)
+        clean_thread.daemon = True
+
+        email_thread.start()
+        clean_thread.start()
+
+    print(status)
 
     cv2.imshow("Video", frame)
     key = cv2.waitKey(1)
@@ -56,4 +73,5 @@ while True:
         break
 
 video.release()
+clean_thread.start()
 
